@@ -104,9 +104,10 @@ class GenModel:
         """
         self.dataset = PoemsSet(path=path, seq_length=seq_length)
         self.model = RNN_model(dataset=self.dataset)
+        self.seq_length = seq_length
 
     def fit(self, 
-            num_epochs : int = 0,
+            num_epochs : int = 1,
             lr : float = 3e-4, 
             batch_size=512):
         """
