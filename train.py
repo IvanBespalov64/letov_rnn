@@ -1,9 +1,14 @@
+import numpy as np
+
 import torch
 import torch.nn as nn
 
 from torch.utils.data import Dataset, DataLoader
 
 import string
+
+import argparse
+import pickle
 
 class PoemsSet(Dataset):
 
@@ -89,19 +94,19 @@ class RNN_model(nn.Module):
         return torch.zeros(self.gru_layers, seq_length, self.gru_inp)
 
 
-class ModelTrainer:
+class GenModel:
     
-    def __init__(self):
+    def __init__(self,
+                 path : str,     
+                 seq_length : int = 12):
         """
             Creates and trains model, that should generate text
         """
-
-        pass
+        self.dataset = PoemsSet(path=path, seq_length=seq_length)
+        self.model = RNN_model(dataset=self.dataset)
 
     def fit(self, 
-            path : str,     
-            seq_length : int = 12,
-            num_epochs : int = 3,
+            num_epochs : int = 0,
             lr : float = 3e-4, 
             batch_size=512):
         """
@@ -110,24 +115,21 @@ class ModelTrainer:
             separates with "-----"
             seq_length - length of sequence in train            
         """
-
-        self.dataset = PoemSet(path=path, seq_lengt=seq_length)
+        
         dataloader = DataLoader(self.dataset, batch_size=batch_size)
 
-        rnn_model = RNN_model(dataset=self.dataset)
-
         criterion = nn.CrossEntropyLoss()
-        opt = torch.optim.Adam(rnn_model.parameters(), lr=lr)
+        opt = torch.optim.Adam(self.model.parameters(), lr=lr)
 
-        model.train()
+        self.model.train()
 
         for epoch in range(num_epochs):
-            h_cur = model.init_state(seq_length)
+            h_cur = self.model.init_state(self.seq_length)
             cur_loss = []
             
             for batch_id, (X, y) in enumerate(dataloader):
                 
-                pred, h_new = model(X, h_cur)
+                pred, h_new = self.model(X, h_cur)
                 loss = criterion(pred.transpose(1, 2), y)
 
                 h_cur = h_new.detach()
@@ -143,49 +145,53 @@ class ModelTrainer:
 
             print(f"Epoch {epoch}, loss = {np.mean(cur_loss)}")
 
-        self.model = rnn_model
-
-    def generate(self, 
-                 prefix : str = None,
-                 num_words : int = 15) -> str:
+    def generate(self,
+                 num_words : int, 
+                 prefix : str = None) -> str:
         """
             generates words from trained model
             prefix - word for start of generating
             num_words - number of words to generate 
         """        
-            
+        
+        self.model.eval()
+    
         if prefix is None:
             prefix = np.random.choice(self.dataset.dataset)
 
         words = prefix.split()
-        h_cur = model.init_state(len(words))
+        print(words)
+        h_cur = self.model.init_state(len(words))
 
-        generated = words
-
-        for word in range(num_gen):
-            X = torch.tensor([[dataset.words_to_idxs[word] for word in words]])
-            pred, h_cur = model(X, h_cur)
+        for i in range(num_words):
+            X = torch.tensor([[self.dataset.words_to_idxs[word] for word in words[i:]]])
+            pred, h_cur = self.model(X, h_cur)
             lastword_logits = pred[0][-1]
             p = torch.nn.functional.softmax(lastword_logits, dim=0).detach().numpy()
             next_idx = np.random.choice(len(lastword_logits), p=p)
-            generated.append(dataset.idxs_to_words[next_idx])
+            words.append(self.dataset.idxs_to_words[next_idx])
 
-        return " ".join(generated)
+        return " ".join(words)
 
+    def save_model(self, 
+                   path_to_model : str):
+        
+        """
+            Saves trained model
+        """
+        with open(path_to_model, "wb") as save_file:
+            pickle.dump(self, save_file)
+        #torch.save(self.model.state_dict(), path_to_model)
 
 if __name__ == "__main__":
-    print("Hello")
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument("--input-dir")
+    parser.add_argument("--model")
 
+    args = parser.parse_args()   
 
-
-
-
-
-
-
-
-
-
-
-
-
+    model = GenModel(args.input_dir)
+    model.fit()
+    
+    model.save_model(args.model if args.model is not None else "model.pkl")
