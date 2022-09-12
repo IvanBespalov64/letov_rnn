@@ -107,7 +107,7 @@ class GenModel:
         self.seq_length = seq_length
 
     def fit(self, 
-            num_epochs : int = 1,
+            num_epochs : int = 3,
             lr : float = 3e-4, 
             batch_size=512):
         """
